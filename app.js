@@ -1,4 +1,5 @@
 const express = require('express');
+const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const session = require('express-session');
 const path = require('path');
@@ -10,7 +11,7 @@ const SECRET_KEY = 'your_secret_key';
 
 mongoose.set('strictQuery', false);
 
-const uri =  "mongodb://root:MzA3NDQteWRlbGFo@localhost:27017";
+const uri =  "mongodb://mongodb:27017";
 mongoose.connect(uri,{'dbName':'SocialDB'});
 
 const User = mongoose.model('User', { username: String, email: String, password: String });
@@ -21,7 +22,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(session({ secret: SECRET_KEY, resave: false, saveUninitialized: true, cookie: { secure: false } }));
 
 
-// Insert your authenticateJWT Function code here.
+// authenticateJWT Function code.
 function authenticateJWT(req, res, next) {
     const token = req.session.token;
 
@@ -36,7 +37,7 @@ function authenticateJWT(req, res, next) {
     }
 }
 
-// Insert your requireAuth Function code here.
+// requireAuth Function code.
 function requireAuth(req, res, next) {
     const token = req.session.token;
 
@@ -51,14 +52,14 @@ function requireAuth(req, res, next) {
     }
 }
 
-// Insert your routing HTML code here.
+// routing HTML code.
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.get('/register', (req, res) => res.sendFile(path.join(__dirname, 'public', 'register.html')));
 app.get('/login', (req, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')));
 app.get('/post', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'public', 'post.html')));
 app.get('/index', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html'), { username: req.user.username }));
 
-// Insert your user registration code here.
+// User registration route.
 app.post('/register', async (req, res) => {
   const { username, email, password } = req.body;
 
@@ -67,7 +68,8 @@ app.post('/register', async (req, res) => {
 
     if (existingUser) return res.status(400).json({ message: 'User already exists' });
 
-    const newUser = new User({ username, email, password });
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newUser = new User({ username, email, password: hashedPassword });
     await newUser.save();
 
     const token = jwt.sign({ userId: newUser._id, username: newUser.username }, SECRET_KEY, { expiresIn: '1h' });
@@ -80,25 +82,36 @@ app.post('/register', async (req, res) => {
   }
 });
 
-// Insert your user login code here.
+// User login route.
 app.post('/login', async (req, res) => {
   const { username, password } = req.body;
 
   try {
-    const user = await User.findOne({ username, password });
+    const user = await User.findOne({ username });
+    if (!user) {
+        return res.status(401).json({ message: 'Invalid credentials' });
+    }
 
-    if (!user) return res.status(401).json({ message: 'Invalid credentials' });
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+        return res.status(401).json({ message: 'Invalid credentials' });
+    }
 
     const token = jwt.sign({ userId: user._id, username: user.username }, SECRET_KEY, { expiresIn: '1h' });
     req.session.token = token;
 
-    res.redirect(`/index?username=${newUser.username}`);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Internal Server Error' });
-  }
+    req.session.save(err => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ message: 'Internal Server Error' });
+        }
+        res.json({ message: 'Login successful', redirectUrl: `/index?username=${user.username}`});
+    });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Internal Server Error' });
+        }
 });
-
 // Insert your post creation code here.
 app.post('/posts', authenticateJWT, (req, res) => {
   const { text } = req.body;
