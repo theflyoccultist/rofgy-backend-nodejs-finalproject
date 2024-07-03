@@ -94,6 +94,7 @@
       const loginBtn = document.getElementById('loginBtn');
       const logoutBtn = document.getElementById('logoutBtn');
       const createPostBtn = document.getElementById('createPostBtn');
+      const welcomeMessage = document.getElementById('welcomeMessage');
 
       if (username) {
         registerBtn.style.display = loginBtn.style.display = 'none';
@@ -114,7 +115,6 @@
     }
 
     window.onload = function () {
-      getUsernameFromURL();
       handleAuthentication();
     };
   </script>

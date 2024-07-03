@@ -21,51 +21,12 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(session({ secret: SECRET_KEY, resave: false, saveUninitialized: true, cookie: { secure: false } }));
 
-
-// authenticateJWT Function code.
-function authenticateJWT(req, res, next) {
-    const token = req.session.token;
-
-    if (!token) return res.status(401).jsoin({ message: 'Unauthorized' });
-
-    try {
-        const decoded = jwt.verify(token, SECRET_KEY);
-        req.user = decoded;
-        next();
-    } catch (error) {
-        return res.status(401).json({ message: 'Invalid token' });
-    }
-}
-
-// requireAuth Function code.
-function requireAuth(req, res, next) {
-    const token = req.session.token;
-
-    if (!token) return res.redirect('/login');
-
-    try {
-        const decoded = jwt.verify(token, SECRET_KEY).
-        req.user = decoded;
-        next();
-    } catch (error) {
-        return res.redirect('/login');
-    }
-}
-
-// routing HTML code.
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
-app.get('/register', (req, res) => res.sendFile(path.join(__dirname, 'public', 'register.html')));
-app.get('/login', (req, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')));
-app.get('/post', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'public', 'post.html')));
-app.get('/index', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html'), { username: req.user.username }));
-
 // User registration route.
 app.post('/register', async (req, res) => {
   const { username, email, password } = req.body;
 
   try {
     const existingUser = await User.findOne({ $or: [{ username }, { email }] });
-
     if (existingUser) return res.status(400).json({ message: 'User already exists' });
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -75,7 +36,13 @@ app.post('/register', async (req, res) => {
     const token = jwt.sign({ userId: newUser._id, username: newUser.username }, SECRET_KEY, { expiresIn: '1h' });
     req.session.token = token;
 
-    res.redirect(`/index?username=${newUser.username}`);
+    req.session.save(err => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ message: 'Internal Server Error'});
+        }
+        res.redirect(`/index?username=${newUser.username}`);
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Internal Server Error' });
@@ -105,13 +72,48 @@ app.post('/login', async (req, res) => {
             console.error(err);
             return res.status(500).json({ message: 'Internal Server Error' });
         }
-        res.json({ message: 'Login successful', redirectUrl: `/index?username=${user.username}`});
+        res.redirect(`/index?username=${user.username}`);
     });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Internal Server Error' });
         }
 });
+
+
+// General Routing.
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.get('/register', (req, res) => res.sendFile(path.join(__dirname, 'public', 'register.html')));
+app.get('/login', (req, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')));
+app.get('/post', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'public', 'post.html')));
+app.get('/index', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html'), { username: req.user.username }));
+
+function authenticateJWT(req, res, next) {
+    const token = req.session.token;
+    if (!token) return res.status(401).jsoin({ message: 'Unauthorized' });
+
+    try {
+        const decoded = jwt.verify(token, SECRET_KEY);
+        req.user = decoded;
+        next();
+    } catch (error) {
+        return res.status(401).json({ message: 'Invalid token' });
+    }
+}
+
+function requireAuth(req, res, next) {
+    const token = req.session.token;
+    if (!token) return res.redirect('/login');
+
+    try {
+        const decoded = jwt.verify(token, SECRET_KEY).
+        req.user = decoded;
+        next();
+    } catch (error) {
+        return res.redirect('/login');
+    }
+}
+
 // Insert your post creation code here.
 app.post('/posts', authenticateJWT, (req, res) => {
   const { text } = req.body;
