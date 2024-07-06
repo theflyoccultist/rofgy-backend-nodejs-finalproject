@@ -72,7 +72,7 @@ app.post('/login', async (req, res) => {
             console.error(err);
             return res.status(500).json({ message: 'Internal Server Error' });
         }
-        res.redirect(`/index?username=${user.username}`);
+        res.json({ message: 'Login successful', redirectUrl: `/index?username=$(user.username)`});
     });
     } catch (error) {
         console.error(error);
@@ -80,17 +80,9 @@ app.post('/login', async (req, res) => {
         }
 });
 
-
-// General Routing.
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
-app.get('/register', (req, res) => res.sendFile(path.join(__dirname, 'public', 'register.html')));
-app.get('/login', (req, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')));
-app.get('/post', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'public', 'post.html')));
-app.get('/index', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html'), { username: req.user.username }));
-
 function authenticateJWT(req, res, next) {
     const token = req.session.token;
-    if (!token) return res.status(401).jsoin({ message: 'Unauthorized' });
+    if (!token) return res.status(401).json({ message: 'Unauthorized' });
 
     try {
         const decoded = jwt.verify(token, SECRET_KEY);
@@ -103,16 +95,26 @@ function authenticateJWT(req, res, next) {
 
 function requireAuth(req, res, next) {
     const token = req.session.token;
-    if (!token) return res.redirect('/login');
+    if (!token) {
+        return res.status(401).json({ message: 'Unauthorized' });
+    }
 
     try {
         const decoded = jwt.verify(token, SECRET_KEY).
         req.user = decoded;
         next();
     } catch (error) {
-        return res.redirect('/login');
+        console.error('Token verification error:', error);
+        return res.status(401).json({ message: 'Unauthorized' });
     }
 }
+
+// General Routing.
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.get('/register', (req, res) => res.sendFile(path.join(__dirname, 'public', 'register.html')));
+app.get('/login', (req, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')));
+app.get('/post', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'public', 'post.html')));
+app.get('/index', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
 // Insert your post creation code here.
 app.post('/posts', authenticateJWT, (req, res) => {

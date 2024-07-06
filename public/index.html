@@ -85,7 +85,9 @@
 
   <script>
     function getUsernameFromURL() {
-      return new URLSearchParams(window.location.search).get('username');
+        const username = new URLSearchParams(window.location.search).get('username');
+        console.log('Extracted username:', username);
+        return username;
     }
 
     function handleAuthentication() {
@@ -96,6 +98,8 @@
       const createPostBtn = document.getElementById('createPostBtn');
       const welcomeMessage = document.getElementById('welcomeMessage');
 
+      console.log('Handling authentication for:', username);
+
       if (username) {
         registerBtn.style.display = loginBtn.style.display = 'none';
         logoutBtn.style.display = createPostBtn.style.display = 'inline-block';
@@ -103,6 +107,7 @@
       } else {
         registerBtn.style.display = loginBtn.style.display = 'inline-block';
         logoutBtn.style.display = createPostBtn.style.display = 'none';
+        console.log('username not ofund, showing login/register buttons');
       }
     }
 
